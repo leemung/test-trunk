@@ -5,11 +5,13 @@
 	> Created Time: Mon 29 Jun 2020 10:00:37 AM CST
  ************************************************************************/
 
-#include<iostream>
+#include <iostream>
 using namespace std;
 
 int main()
 {
-	cout<< "hello world!"<<endl;
-	return 0;
+    cout << "hello world!" << endl;
+    cout << "nihao!" << endl;
+    system("pause");
+    return 0;
 }
