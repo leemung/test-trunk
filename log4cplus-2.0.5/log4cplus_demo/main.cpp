@@ -6,7 +6,7 @@
 int main()
 {
 	
-	HYLog.Init("D:\\CodeSpace\\CppTools\\log4cplus-2.0.5\\msvc14\\Release\\log.config");
+	HYLog.Init("./log.config");
 
 	for (size_t i = 0; i < 1000000000; i++)
 	{

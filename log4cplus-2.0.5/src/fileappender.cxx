@@ -36,7 +36,8 @@
 #include <cstdio>
 #include <stdexcept>
 #include <cmath> // std::fmod
-
+#include <queue>
+#include <io.h>
 // For _wrename() and _wremove() on Windows.
 #include <stdio.h>
 #include <cerrno>
@@ -146,6 +147,66 @@ loglog_opening_result (helpers::LogLog & loglog,
     }
 }
 
+static tstring get_file_path(const tstring& filePath) {
+	tstring result = "";
+	if (filePath.empty()) {
+		return result;
+	}
+	std::size_t npos = filePath.find_last_of("/\\");
+	if (npos == 0) {
+		return result;
+	}
+	result = filePath.substr(0, npos);
+	return result;
+}
+
+static int get_File_max_index(const tstring& filePath) {
+
+	tstring inPath = get_file_path(filePath);
+	int maxIndex = 0;
+	int maxCount = 0;
+	//std::vector<tstring> pathVec;
+	std::queue<tstring> q;
+	q.push(inPath);
+	while (!q.empty())
+	{
+		tstring item = q.front();
+		q.pop();
+		tstring path = item + "\\*";
+		struct _finddata_t fileInfo;
+		auto handle = _findfirst(path.c_str(), &fileInfo);
+		if (handle == -1)
+		{
+			continue;
+		}
+		while (!_findnext(handle, &fileInfo))
+		{
+			if (fileInfo.attrib & _A_SUBDIR)
+			{
+				if (strcmp(fileInfo.name, ".") == 0 || strcmp(fileInfo.name, "..") == 0)
+				{
+					continue;
+				}
+				q.push(item + "\\" + fileInfo.name);
+			}
+			else {
+				maxCount++;
+				tstring tmpPath = fileInfo.name;
+				int first = tmpPath.find_first_of('.');
+				int last = tmpPath.find_last_of('.');
+				if (first != tstring::npos && last != tstring::npos)
+				{
+					tstring str = tmpPath.substr(first + 1, last - first - 1);
+					int tempIndex = atoi(str.c_str());
+					maxIndex = (tempIndex > maxIndex) ? tempIndex : maxIndex;
+				}
+				//pathVec.push_back(item + "\\" + fileInfo.name);
+			}
+		}
+		_findclose(handle);
+	}
+	return maxIndex;//(maxIndex < maxCount) ? maxIndex : maxCount;
+}
 
 static
 void
@@ -176,7 +237,7 @@ rolloverFiles(const tstring& filename, unsigned int maxBackupIndex)
 #if defined (_WIN32)
         // Try to remove the target first. It seems it is not
         // possible to rename over existing file.
-        ret = file_remove (target);
+        ret = file_remove(target);
 #endif
 
         ret = file_rename (source, target);
@@ -184,50 +245,30 @@ rolloverFiles(const tstring& filename, unsigned int maxBackupIndex)
     }
 } // end rolloverFiles()
 
-
-
 static
 void
 rolloverFilesEx(const tstring& filename, unsigned int maxBackupIndex)
 {
 	helpers::LogLog * loglog = helpers::LogLog::getLogLog();
-
-	// Delete the oldest file
 	tostringstream buffer;
-	buffer << filename << LOG4CPLUS_TEXT(".") << maxBackupIndex << LOG4CPLUS_TEXT(".log");;
-	long ret = file_remove(buffer.str());
-
 	tostringstream source_oss;
 	tostringstream target_oss;
+	long ret = 0;
 
-	// Map {(maxBackupIndex - 1), ..., 2, 1} to {maxBackupIndex, ..., 3, 2}
-	for (int i = maxBackupIndex - 1; i >= 1; --i)
-	//for (int i = 0; i < maxBackupIndex; i++)
+	for (int i = 1; i < maxBackupIndex; ++i)
 	{
 		source_oss.str(internal::empty_str);
 		target_oss.str(internal::empty_str);
-		/*if (i == 0)
-		{
-			source_oss << filename << LOG4CPLUS_TEXT(".log");
-			target_oss << filename << LOG4CPLUS_TEXT(".") << (i + 1) << LOG4CPLUS_TEXT(".log");
-		}
-		else {*/
-			source_oss << filename << LOG4CPLUS_TEXT(".") << i << LOG4CPLUS_TEXT(".log");
-			target_oss << filename << LOG4CPLUS_TEXT(".") << (i + 1) << LOG4CPLUS_TEXT(".log");
-		//}
-
+		source_oss << filename << i << LOG4CPLUS_TEXT(".log");
+		target_oss << filename << (i - 1) << LOG4CPLUS_TEXT(".log");
 		tstring const source(source_oss.str());
 		tstring const target(target_oss.str());
-
-	/*	std::cout << "source_oss=" << source << std::endl;
-		std::cout << "target_oss=" << target << std::endl;*/
 
 #if defined (_WIN32)
 		// Try to remove the target first. It seems it is not
 		// possible to rename over existing file.
 		ret = file_remove(target);
 #endif
-
 		ret = file_rename(source, target);
 		loglog_renaming_result(*loglog, source, target, ret);
 	}
@@ -1543,6 +1584,7 @@ SizeAndTimeBasedRollingFileAppender::SizeAndTimeBasedRollingFileAppender(
 	, maxHistory(maxHistory_)
 	, cleanHistoryOnStart(cleanHistoryOnStart_)
 	, rollOnClose(rollOnClose_)
+	, BackupIndex_now(0)
 {
 	filenamePattern = preprocessFilenamePattern(filenamePattern, schedule);
 	init(maxFileSize_, maxBackupIndex_);
@@ -1557,6 +1599,7 @@ SizeAndTimeBasedRollingFileAppender::SizeAndTimeBasedRollingFileAppender(
 	, maxHistory(10)
 	, cleanHistoryOnStart(false)
 	, rollOnClose(true)
+	, BackupIndex_now(0)
 {
 	long tmpMaxFileSize = DEFAULT_ROLLING_LOG_SIZE;
 	int tmpMaxBackupIndex = 1;
@@ -1606,6 +1649,12 @@ LOG4CPLUS_PRIVATE void SizeAndTimeBasedRollingFileAppender::init(long maxFileSiz
 		return;
 	}
 
+	log4cplus::tstring tmpScheduledFileName = helpers::getFormattedTime(filenamePattern, helpers::now(), false);
+	BackupIndex_now = get_File_max_index(tmpScheduledFileName);
+	tostringstream scheduled_oss;
+	scheduled_oss.str(internal::empty_str);
+	scheduled_oss << tmpScheduledFileName.substr(0, tmpScheduledFileName.size() - 4) << LOG4CPLUS_TEXT(".") << BackupIndex_now << LOG4CPLUS_TEXT(".log");
+	scheduledFilename = scheduled_oss.str();
 	FileAppenderBase::init();
 
 	Time now = helpers::now();
@@ -1651,9 +1700,7 @@ void SizeAndTimeBasedRollingFileAppender::append(const spi::InternalLoggingEvent
 
 void SizeAndTimeBasedRollingFileAppender::open(std::ios_base::openmode mode)
 {
-	scheduledFilename = helpers::getFormattedTime(filenamePattern, helpers::now(), false);
-	tstring currentFilename = filename.empty() ? scheduledFilename : filename;
-
+	log4cplus::tstring currentFilename = filename.empty() ? scheduledFilename : filename;
 	if (createDirs)
 		internal::make_dirs(currentFilename);
 
@@ -1664,6 +1711,7 @@ void SizeAndTimeBasedRollingFileAppender::open(std::ios_base::openmode mode)
 		return;
 	}
 	helpers::getLogLog().debug(LOG4CPLUS_TEXT("Just opened file: ") + currentFilename);
+	BackupIndex_now = get_File_max_index(currentFilename);
 }
 
 void SizeAndTimeBasedRollingFileAppender::close()
@@ -1770,77 +1818,51 @@ void SizeAndTimeBasedRollingFileAppender::rolloverbysize(bool alreadyLocked)
 		}
 	}
 
-	if (maxBackupIndex > 0)
+	int delIndex = 0;
+	int npos = scheduledFilename.find_first_of('.');
+	if (npos != tstring::npos)
 	{
-		rolloverFilesEx(scheduledFilename.substr(0, scheduledFilename.size() - 4), maxBackupIndex);
-
-//		// Rename fileName to fileName.1
-		tstring target = scheduledFilename.substr(0, scheduledFilename.size() - 4) + LOG4CPLUS_TEXT(".1.log");
-
+		delIndex = scheduledFilename.size() - npos - 1;
+	}
+	if (BackupIndex_now >= maxBackupIndex - 1)
+	{	
+		rolloverFilesEx(scheduledFilename.substr(0, scheduledFilename.size() - delIndex), maxBackupIndex);
+		tostringstream target_oss;
+		target_oss.str(internal::empty_str);
+		target_oss << scheduledFilename.substr(0, scheduledFilename.size() - delIndex) << BackupIndex_now << LOG4CPLUS_TEXT(".log");
+		scheduledFilename = target_oss.str();
 		long ret;
 
 #if defined (_WIN32)
 		// Try to remove the target first. It seems it is not
 		// possible to rename over existing file.
-		ret = file_remove(target);
+		ret = file_remove(scheduledFilename);
 #endif
 
-		loglog.debug(
+		/*loglog.debug(
 			LOG4CPLUS_TEXT("Renaming file ")
 			+ scheduledFilename
 			+ LOG4CPLUS_TEXT(" to ")
-			+ target);
+			+ filename);
 		ret = file_rename(scheduledFilename, target);
-		loglog_renaming_result(loglog, scheduledFilename, target, ret);
+		loglog_renaming_result(loglog, filename, target, ret);*/
 	}
 	else
 	{
-		loglog.debug(scheduledFilename + LOG4CPLUS_TEXT(" has no backups specified"));
-	}
+		tostringstream target_oss;
+		target_oss.str(internal::empty_str);
+		target_oss << scheduledFilename.substr(0, scheduledFilename.size() - delIndex) << BackupIndex_now + 1 << LOG4CPLUS_TEXT(".log");
+		scheduledFilename = target_oss.str();
 
+#if defined (_WIN32)
+		// Try to remove the target first. It seems it is not
+		// possible to rename over existing file.
+		file_remove(scheduledFilename);
+#endif
+	}
 	// Open it up again in truncation mode
 	open(std::ios::out | std::ios::trunc);
 	loglog_opening_result(loglog, out, scheduledFilename);
-
-
-//
-//	if (maxBackupIndex > 0) 
-//	{
-//		rolloverFiles(scheduledFilename, maxBackupIndex);
-//		tostringstream target_oss;
-//		if (BackupIndex_now == 0)
-//			target_oss << scheduledFilename ;
-//		else 
-//		{
-//			target_oss << scheduledFilename.substr(0, scheduledFilename.size() - 4) << LOG4CPLUS_TEXT("-") << BackupIndex_now << LOG4CPLUS_TEXT(".log");
-//		}
-//		tstring target = target_oss.str();
-//		BackupIndex_now++;
-//		long ret;
-//
-//#if defined (_WIN32)
-//		// Try to remove the target first. It seems it is not
-//		// possible to rename over existing file.
-//		ret = file_remove(target);
-//#endif
-//
-//		loglog.debug(
-//			LOG4CPLUS_TEXT("Renaming file ")
-//			+ scheduledFilename
-//			+ LOG4CPLUS_TEXT(" to ")
-//			+ target);
-//		ret = file_rename(scheduledFilename, target);
-//		loglog_renaming_result(loglog, scheduledFilename, target, ret);
-//	}
-//	else
-//	{
-//		loglog.debug(scheduledFilename + LOG4CPLUS_TEXT(" has no backups specified"));
-//	}
-//
-//	// Open it up again in truncation mode
-//	open(std::ios::out | std::ios::trunc);
-//	loglog_opening_result(loglog, out, scheduledFilename);
-	
 }
 
 void SizeAndTimeBasedRollingFileAppender::clean(helpers::Time time)
