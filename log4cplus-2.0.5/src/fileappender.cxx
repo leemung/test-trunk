@@ -37,13 +37,20 @@
 #include <stdexcept>
 #include <cmath> // std::fmod
 #include <queue>
-#include <io.h>
+
 // For _wrename() and _wremove() on Windows.
 #include <stdio.h>
 #include <cerrno>
 #ifdef LOG4CPLUS_HAVE_ERRNO_H
 #include <errno.h>
 #endif
+
+#if defined (_WIN32)
+#include <io.h>
+#else 
+#include<dirent.h>
+#endif // WIN32
+
 
 namespace log4cplus
 {
@@ -162,9 +169,10 @@ static tstring get_file_path(const tstring& filePath) {
 
 static int get_File_max_index(const tstring& filePath) {
 
-	tstring inPath = get_file_path(filePath);
 	int maxIndex = 0;
 	int maxCount = 0;
+#if defined (_WIN32)
+	tstring inPath = get_file_path(filePath);
 	//std::vector<tstring> pathVec;
 	std::queue<tstring> q;
 	q.push(inPath);
@@ -205,6 +213,21 @@ static int get_File_max_index(const tstring& filePath) {
 		}
 		_findclose(handle);
 	}
+#else
+	DIR *pDir;
+	struct dirent* ptr;
+	if (!(pDir = opendir(filePath.c_str())) {
+		return maxIndex;
+	}
+	while ((ptr=readdir(pDir)) !=0)
+	{
+		if (strcmp(ptr->d_name, ".") != 0 && strcmp(ptr->d_name, "..") != 0)
+		{
+			maxIndex++;
+		}
+	}
+	closedir(pDir);
+#endif
 	return maxIndex;//(maxIndex < maxCount) ? maxIndex : maxCount;
 }
 
