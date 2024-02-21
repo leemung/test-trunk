@@ -464,7 +464,7 @@ namespace log4cplus
 		tstring scheduledFilename;
 		long maxFileSize;
 		int maxBackupIndex;
-		int BackupIndex_now = 0;
+		int currentBackupIndex = 0;
 		int maxHistory;
 		bool cleanHistoryOnStart;
 		log4cplus::helpers::Time lastHeartBeat;

@@ -1,19 +1,20 @@
 #include <iostream>
 #include "log.h"
+
 //不显示控制台窗口
 //#pragma comment( linker, "/subsystem:windows /entry:mainCRTStartup")
+
 
 int main()
 {
 	
-	HYLog.Init("./log.config");
-
+	HYLog.Init("E:/git-trunk/test-trunk/log4cplus-2.0.5/msvc14/Win32/bin.Debug/log.config");
 	for (size_t i = 0; i < 1000000000; i++)
 	{
-		HYLog.Info("[%s] 开始打印日志信息。。。Info。", __FUNCTION__);
-		HYLog.Error("[%s] 开始打印日志信息。。Error。", __FUNCTION__);
-		HYLog.Warn("[%s] 开始打印日志信息。。Warn。", __FUNCTION__);
-		
+		LOG_INFO("开始打印日志信息开始打印日志信息开始打印日志信息开始打印日志信息开始打印日志信息开始打印日志信息。。。Info。");
+		LOG_INFO("开始打印日志信息开始打印日志信息开始打印日志信息开始打印日志信息开始打印日志信息。。Error。");
+		LOG_INFO("开始打印日志信息开始打印日志信息开始打印日志信息开始打印日志信息开始打印日志信息开始打印日志信息。。Warn。");
+
 	}
 	std::cout << "Hello World.." << std::endl;
 	//HYLog.Close();

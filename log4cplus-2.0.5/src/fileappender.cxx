@@ -167,7 +167,7 @@ static tstring get_file_path(const tstring& filePath) {
 	return result;
 }
 
-static int get_File_max_index(const tstring& filePath) {
+static int get_file_max_index(const tstring& filePath) {
 
 	int maxIndex = 0;
 	int maxCount = 0;
@@ -277,8 +277,7 @@ rolloverFilesEx(const tstring& filename, unsigned int maxBackupIndex)
 	tostringstream source_oss;
 	tostringstream target_oss;
 	long ret = 0;
-
-	for (int i = 1; i < maxBackupIndex; ++i)
+	for (size_t i = 1; i < maxBackupIndex; ++i)
 	{
 		source_oss.str(internal::empty_str);
 		target_oss.str(internal::empty_str);
@@ -877,7 +876,6 @@ DailyRollingFileAppender::close()
 }
 
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // DailyRollingFileAppender protected methods
 ///////////////////////////////////////////////////////////////////////////////
@@ -893,8 +891,6 @@ DailyRollingFileAppender::append(const spi::InternalLoggingEvent& event)
 
     FileAppender::append(event);
 }
-
-
 
 void
 DailyRollingFileAppender::rollover(bool alreadyLocked)
@@ -979,7 +975,6 @@ Time
 calculateNextRolloverTime(const Time& t, DailyRollingFileSchedule schedule)
 {
     namespace chrono = helpers::chrono;
-
     struct tm next;
     switch(schedule)
     {
@@ -1607,7 +1602,7 @@ SizeAndTimeBasedRollingFileAppender::SizeAndTimeBasedRollingFileAppender(
 	, maxHistory(maxHistory_)
 	, cleanHistoryOnStart(cleanHistoryOnStart_)
 	, rollOnClose(rollOnClose_)
-	, BackupIndex_now(0)
+	, currentBackupIndex(0)
 {
 	filenamePattern = preprocessFilenamePattern(filenamePattern, schedule);
 	init(maxFileSize_, maxBackupIndex_);
@@ -1622,7 +1617,6 @@ SizeAndTimeBasedRollingFileAppender::SizeAndTimeBasedRollingFileAppender(
 	, maxHistory(10)
 	, cleanHistoryOnStart(false)
 	, rollOnClose(true)
-	, BackupIndex_now(0)
 {
 	long tmpMaxFileSize = DEFAULT_ROLLING_LOG_SIZE;
 	int tmpMaxBackupIndex = 1;
@@ -1645,9 +1639,6 @@ SizeAndTimeBasedRollingFileAppender::SizeAndTimeBasedRollingFileAppender(
 	}
 
 	properties.getInt(tmpMaxBackupIndex, LOG4CPLUS_TEXT("MaxBackupIndex"));
-
-	//init(tmpMaxFileSize, tmpMaxBackupIndex);
-
 	filenamePattern = properties.getProperty(LOG4CPLUS_TEXT("FilenamePattern"));
 	properties.getInt(maxHistory, LOG4CPLUS_TEXT("MaxHistory"));
 	properties.getBool(cleanHistoryOnStart, LOG4CPLUS_TEXT("CleanHistoryOnStart"));
@@ -1666,17 +1657,16 @@ SizeAndTimeBasedRollingFileAppender::~SizeAndTimeBasedRollingFileAppender()
 
 LOG4CPLUS_PRIVATE void SizeAndTimeBasedRollingFileAppender::init(long maxFileSize_, int maxBackupIndex_)
 {
-	if (filenamePattern.empty())
-	{
+	if (filenamePattern.empty()) {
 		getErrorHandler()->error(LOG4CPLUS_TEXT("Invalid filename/filenamePattern values"));
 		return;
 	}
 
 	log4cplus::tstring tmpScheduledFileName = helpers::getFormattedTime(filenamePattern, helpers::now(), false);
-	BackupIndex_now = get_File_max_index(tmpScheduledFileName);
+	currentBackupIndex = get_file_max_index(tmpScheduledFileName);
 	tostringstream scheduled_oss;
 	scheduled_oss.str(internal::empty_str);
-	scheduled_oss << tmpScheduledFileName.substr(0, tmpScheduledFileName.size() - 4) << LOG4CPLUS_TEXT(".") << BackupIndex_now << LOG4CPLUS_TEXT(".log");
+	scheduled_oss << tmpScheduledFileName.substr(0, tmpScheduledFileName.size() - 4) << LOG4CPLUS_TEXT(".") << currentBackupIndex << LOG4CPLUS_TEXT(".log");
 	scheduledFilename = scheduled_oss.str();
 	FileAppenderBase::init();
 
@@ -1734,7 +1724,7 @@ void SizeAndTimeBasedRollingFileAppender::open(std::ios_base::openmode mode)
 		return;
 	}
 	helpers::getLogLog().debug(LOG4CPLUS_TEXT("Just opened file: ") + currentFilename);
-	BackupIndex_now = get_File_max_index(currentFilename);
+	currentBackupIndex = get_file_max_index(currentFilename);
 }
 
 void SizeAndTimeBasedRollingFileAppender::close()
@@ -1841,18 +1831,22 @@ void SizeAndTimeBasedRollingFileAppender::rolloverbysize(bool alreadyLocked)
 		}
 	}
 
+	int tmpIndex = 0;
 	int delIndex = 0;
-	int npos = scheduledFilename.find_first_of('.');
-	if (npos != tstring::npos)
+	int npos1 = scheduledFilename.find_last_of('.');
+	int npos2 =  scheduledFilename.rfind('.', scheduledFilename.rfind('.') - 1);
+	if (npos1 != tstring::npos && npos2 != tstring::npos)
 	{
-		delIndex = scheduledFilename.size() - npos - 1;
+		tmpIndex = stoi(scheduledFilename.substr(npos2 + 1, npos1 - 1));
+		delIndex = npos2;
 	}
-	if (BackupIndex_now >= maxBackupIndex - 1)
+
+	if (currentBackupIndex >= maxBackupIndex - 1)
 	{	
-		rolloverFilesEx(scheduledFilename.substr(0, scheduledFilename.size() - delIndex), maxBackupIndex);
+		rolloverFilesEx(scheduledFilename.substr(0, delIndex + 1), maxBackupIndex);
 		tostringstream target_oss;
 		target_oss.str(internal::empty_str);
-		target_oss << scheduledFilename.substr(0, scheduledFilename.size() - delIndex) << BackupIndex_now << LOG4CPLUS_TEXT(".log");
+		target_oss << scheduledFilename.substr(0, delIndex + 1) << currentBackupIndex << LOG4CPLUS_TEXT(".log");
 		scheduledFilename = target_oss.str();
 		long ret;
 
@@ -1874,7 +1868,7 @@ void SizeAndTimeBasedRollingFileAppender::rolloverbysize(bool alreadyLocked)
 	{
 		tostringstream target_oss;
 		target_oss.str(internal::empty_str);
-		target_oss << scheduledFilename.substr(0, scheduledFilename.size() - delIndex) << BackupIndex_now + 1 << LOG4CPLUS_TEXT(".log");
+		target_oss << scheduledFilename.substr(0, delIndex + 1) << currentBackupIndex + 1 << LOG4CPLUS_TEXT(".log");
 		scheduledFilename = target_oss.str();
 
 #if defined (_WIN32)
