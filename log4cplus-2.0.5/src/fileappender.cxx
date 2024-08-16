@@ -36,7 +36,6 @@
 #include <cstdio>
 #include <stdexcept>
 #include <cmath> // std::fmod
-#include <queue>
 
 // For _wrename() and _wremove() on Windows.
 #include <stdio.h>
@@ -93,7 +92,6 @@ file_rename (tstring const & src, tstring const & target)
 #endif
 }
 
-
 static
 long
 file_remove (tstring const & src)
@@ -112,7 +110,6 @@ file_remove (tstring const & src)
 
 #endif
 }
-
 
 static
 void
@@ -139,7 +136,6 @@ loglog_renaming_result (helpers::LogLog & loglog, tstring const & src,
         loglog.error (oss.str ());
     }
 }
-
 
 static
 void
@@ -168,67 +164,71 @@ static tstring get_file_path(const tstring& filePath) {
 }
 
 static int get_file_max_index(const tstring& filePath) {
-
 	int maxIndex = 0;
-	int maxCount = 0;
-#if defined (_WIN32)
 	tstring inPath = get_file_path(filePath);
-	//std::vector<tstring> pathVec;
-	std::queue<tstring> q;
-	q.push(inPath);
-	while (!q.empty())
+#if defined (_WIN32)
+	tstring path = inPath + "\\*";
+	struct _finddata_t fileInfo;
+	auto handle = _findfirst(path.c_str(), &fileInfo);
+	if (handle == -1)
 	{
-		tstring item = q.front();
-		q.pop();
-		tstring path = item + "\\*";
-		struct _finddata_t fileInfo;
-		auto handle = _findfirst(path.c_str(), &fileInfo);
-		if (handle == -1)
+		return maxIndex;
+	}
+	while (!_findnext(handle, &fileInfo))
+	{
+		if (fileInfo.attrib & _A_SUBDIR)
+		{
+			if (strcmp(fileInfo.name, ".") == 0 || strcmp(fileInfo.name, "..") == 0)
+			{
+				continue;
+			}
+		}
+		else {
+			tstring tmpPath = fileInfo.name;
+			int first = tmpPath.find_first_of('.');
+			int last = tmpPath.find_last_of('.');
+			if (first != tstring::npos && last != tstring::npos)
+			{
+				tstring str = tmpPath.substr(first + 1, last - first - 1);
+				int tempIndex = atoi(str.c_str());
+				maxIndex = (tempIndex > maxIndex) ? tempIndex : maxIndex;
+			}
+		}
+	}
+	_findclose(handle);
+#else
+	DIR *pDir = opendir(inPath.c_str());
+	if (!pDir) {
+		return maxIndex;
+	}
+	struct dirent* ptr;
+	while ((ptr = readdir(pDir)) != nullptr) {
+		struct stat fileStat;
+		if (stat(inPath.c_str(), &fileStat) == -1)
 		{
 			continue;
 		}
-		while (!_findnext(handle, &fileInfo))
+		//S_ISREG-判断是否为普通文件; S_ISDIR-判断是否为文件夹;
+		if (S_ISDIR(fileStat.st_mode))
 		{
-			if (fileInfo.attrib & _A_SUBDIR)
+			if (strcmp(ptr->d_name, ".") == 0 || strcmp(ptr->d_name, "..") == 0)
 			{
-				if (strcmp(fileInfo.name, ".") == 0 || strcmp(fileInfo.name, "..") == 0)
-				{
-					continue;
-				}
-				q.push(item + "\\" + fileInfo.name);
-			}
-			else {
-				maxCount++;
-				tstring tmpPath = fileInfo.name;
-				int first = tmpPath.find_first_of('.');
-				int last = tmpPath.find_last_of('.');
-				if (first != tstring::npos && last != tstring::npos)
-				{
-					tstring str = tmpPath.substr(first + 1, last - first - 1);
-					int tempIndex = atoi(str.c_str());
-					maxIndex = (tempIndex > maxIndex) ? tempIndex : maxIndex;
-				}
-				//pathVec.push_back(item + "\\" + fileInfo.name);
+				continue;
 			}
 		}
-		_findclose(handle);
-	}
-#else
-	DIR *pDir;
-	struct dirent* ptr;
-	if (!(pDir = opendir(filePath.c_str())) {
-		return maxIndex;
-	}
-	while ((ptr=readdir(pDir)) !=0)
-	{
-		if (strcmp(ptr->d_name, ".") != 0 && strcmp(ptr->d_name, "..") != 0)
+		std::string tmpPath = ptr->d_name;
+		int first = tmpPath.find_first_of('.');
+		int last = tmpPath.find_last_of('.');
+		if (first != std::string::npos && last != std::string::npos)
 		{
-			maxIndex++;
+			std::string str = tmpPath.substr(first + 1, last - first - 1);
+			int tempIndex = atoi(str.c_str());
+			maxIndex = (tempIndex > maxIndex) ? tempIndex : maxIndex;
 		}
 	}
 	closedir(pDir);
 #endif
-	return maxIndex;//(maxIndex < maxCount) ? maxIndex : maxCount;
+	return maxIndex;
 }
 
 static
