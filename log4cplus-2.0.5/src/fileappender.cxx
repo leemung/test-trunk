@@ -36,6 +36,7 @@
 #include <cstdio>
 #include <stdexcept>
 #include <cmath> // std::fmod
+#include <string.h>
 
 // For _wrename() and _wremove() on Windows.
 #include <stdio.h>
@@ -47,6 +48,7 @@
 #if defined (_WIN32)
 #include <io.h>
 #else 
+#include <sys/stat.h>
 #include<dirent.h>
 #endif // WIN32
 
