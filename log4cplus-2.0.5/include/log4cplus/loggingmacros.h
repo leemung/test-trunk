@@ -166,7 +166,7 @@ LOG4CPLUS_EXPORT void macro_forced_log (log4cplus::Logger const &,
 #if defined(_MSC_VER)
 	#define LOG4CPLUS_MACRO_FILE() __FILE__
 #else
-	#define LOG4CPLUS_MACRO_FILE() __FILE__NAME__
+	#define LOG4CPLUS_MACRO_FILE() __FILE__//NAME__
 #endif
 #endif
 
