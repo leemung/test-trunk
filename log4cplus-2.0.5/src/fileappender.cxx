@@ -37,6 +37,7 @@
 #include <stdexcept>
 #include <cmath> // std::fmod
 #include <string.h>
+#include <vector>
 
 // For _wrename() and _wremove() on Windows.
 #include <stdio.h>
@@ -47,9 +48,10 @@
 
 #if defined (_WIN32)
 #include <io.h>
+#include <Windows.h>
 #else 
 #include <sys/stat.h>
-#include<dirent.h>
+#include <dirent.h>
 #endif // WIN32
 
 
@@ -110,6 +112,91 @@ file_remove (tstring const & src)
     else
         return errno;
 
+#endif
+}
+
+static void get_files(tstring const& dirname, std::vector<tstring>& filelist)
+{
+#if defined (_WIN32)
+	long long hFile = 0;
+	struct _finddata_t fileinfo;
+	tstring p;
+	int i = 0;
+	if ((hFile = _findfirst(p.assign(dirname).append("/*").c_str(), &fileinfo)) != -1)
+	{
+		do
+		{
+			if ((fileinfo.attrib & _A_SUBDIR))
+				continue;
+			else
+				filelist.push_back(p.assign(dirname).append("/").append(fileinfo.name));
+		} while (_findnext(hFile, &fileinfo) == 0);
+		_findclose(hFile);
+	}
+
+#else
+	if (dirname.empty())
+	{
+		return;
+	}
+	struct stat s;
+	stat(dirname.c_str(), &s);
+	if (!S_ISDIR(s.st_mode))
+	{
+		return;
+	}
+
+	DIR *dirhand = opendir(dirname.c_str());
+	if (NULL == dirhand)
+	{
+		return;
+	}
+	dirent *fp = nullptr;
+	while ((fp = readdir(dirhand)) != nullptr)
+	{
+		if (fp->d_name[0] != '.')
+		{
+			std::string  filename = dirname + "/" + std::string(fp->d_name);
+			struct stat filemod;
+			stat(filename.c_str(), &filemod);
+			if (S_ISDIR(filemod.st_mode))
+			{
+				get_files(filename, filelist);
+			}
+			else if (S_ISREG(filemod.st_mode))
+			{
+				filelist.push_back(filename);
+			}
+		}
+
+	}
+	closedir(dirhand);
+#endif
+
+}
+
+static void remove_dir(tstring const& path)
+{
+	std::vector<tstring> dirList;
+	get_files(path, dirList);
+#if defined (_WIN32)
+	while (!dirList.empty())
+	{
+		tstring fileName = dirList.back();
+		DeleteFile(fileName.c_str());
+		dirList.pop_back();
+	}
+	RemoveDirectory(path.c_str());
+#else
+	while (!dirList.empty())
+	{
+		tstring fileName = dirList.back();
+		remove(fileName.c_str());
+		dirList.pop_back();
+	}
+	if (rmdir(path) != 0) {
+		return errno;
+	}
 #endif
 }
 
@@ -1617,7 +1704,7 @@ SizeAndTimeBasedRollingFileAppender::SizeAndTimeBasedRollingFileAppender(
 	, filenamePattern(LOG4CPLUS_TEXT("%d.log"))
 	, schedule(DAILY)
 	, maxHistory(10)
-	, cleanHistoryOnStart(false)
+	, cleanHistoryOnStart(true)
 	, rollOnClose(true)
 {
 	long tmpMaxFileSize = DEFAULT_ROLLING_LOG_SIZE;
@@ -1676,7 +1763,8 @@ LOG4CPLUS_PRIVATE void SizeAndTimeBasedRollingFileAppender::init(long maxFileSiz
 
 	if (cleanHistoryOnStart)
 	{
-		clean(now + maxHistory * getRolloverPeriodDuration());
+		//clean(now + maxHistory * getRolloverPeriodDuration());
+		clean(now);
 	}
 
 	lastHeartBeat = now;
@@ -1952,11 +2040,13 @@ void SizeAndTimeBasedRollingFileAppender::clean(helpers::Time time)
 	{
 		long periodToRemove = (-maxHistory - 1) - i;
 		Time timeToRemove = time + periodToRemove * period;
-		tstring filenameToRemove = helpers::getFormattedTime(filenamePattern, timeToRemove, false);
-		loglog.debug(LOG4CPLUS_TEXT("Removing file ") + filenameToRemove);
-		file_remove(filenameToRemove);
+		size_t npos = filenamePattern.find_last_of('/\\');
+		tstring dirNamePattern = filenamePattern.substr(0, npos);
+		tstring dirNameToRemove = helpers::getFormattedTime(dirNamePattern, timeToRemove, false);
+		loglog.debug(LOG4CPLUS_TEXT("Removing dir file ") + dirNameToRemove);
+		//file_remove(filenameToRemove);
+		remove_dir(dirNameToRemove);
 	}
-
 	lastHeartBeat = time;
 }
 
@@ -1987,7 +2077,5 @@ helpers::Time SizeAndTimeBasedRollingFileAppender::calculateNextRolloverTime(con
 	return helpers::truncate_fractions(
 		log4cplus::calculateNextRolloverTime(t, schedule));
 }
-
-
 
 } // namespace log4cplus
