@@ -168,11 +168,9 @@ static void get_files(tstring const& dirname, std::vector<tstring>& filelist)
 				filelist.push_back(filename);
 			}
 		}
-
 	}
 	closedir(dirhand);
 #endif
-
 }
 
 static void remove_dir(tstring const& path)
@@ -194,9 +192,8 @@ static void remove_dir(tstring const& path)
 		remove(fileName.c_str());
 		dirList.pop_back();
 	}
-	if (rmdir(path) != 0) {
-		return errno;
-	}
+	rmdir(path.c_str());
+	
 #endif
 }
 
