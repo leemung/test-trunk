@@ -1732,10 +1732,10 @@ SizeAndTimeBasedRollingFileAppender::SizeAndTimeBasedRollingFileAppender(
 	properties.getInt(tmpMaxBackupIndex, LOG4CPLUS_TEXT("MaxBackupIndex"));
 	filenamePattern = properties.getProperty(LOG4CPLUS_TEXT("FilenamePattern"));
 	properties.getInt(maxHistory, LOG4CPLUS_TEXT("MaxHistory"));
+	maxHistory = maxHistory > 365 ? 365 : maxHistory;
 	properties.getBool(cleanHistoryOnStart, LOG4CPLUS_TEXT("CleanHistoryOnStart"));
 	properties.getBool(rollOnClose, LOG4CPLUS_TEXT("RollOnClose"));
 	filenamePattern = preprocessFilenamePattern(filenamePattern, schedule);
-
 	init(tmpMaxFileSize, tmpMaxBackupIndex);
 }
 
@@ -2028,7 +2028,7 @@ void SizeAndTimeBasedRollingFileAppender::rolloverbysize(bool alreadyLocked)
 
 void SizeAndTimeBasedRollingFileAppender::clean(helpers::Time time)
 {
-	Time::duration interval = std::chrono::hours{ 31 * 24 }; // ~1 month
+	Time::duration interval = std::chrono::hours{ maxHistory * 24 }; // ~ maxHistory day
 	if (lastHeartBeat != Time{})
 	{
 		interval = time - lastHeartBeat + std::chrono::seconds{ 1 };
