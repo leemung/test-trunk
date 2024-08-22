@@ -168,9 +168,11 @@ static void get_files(tstring const& dirname, std::vector<tstring>& filelist)
 				filelist.push_back(filename);
 			}
 		}
+
 	}
 	closedir(dirhand);
 #endif
+
 }
 
 static void remove_dir(tstring const& path)
@@ -188,12 +190,15 @@ static void remove_dir(tstring const& path)
 #else
 	while (!dirList.empty())
 	{
-		tstring fileName = dirList.back();
-		remove(fileName.c_str());
+        tstring fileName = dirList.back();
+		if(remove(fileName.c_str()) == -1){
+            printf("remove failed\n");
+		}
 		dirList.pop_back();
 	}
-	rmdir(path.c_str());
-	
+	if(rmdir(path.c_str()) == -1){
+        printf("rmdir failed\n");
+    }
 #endif
 }
 
@@ -2035,13 +2040,17 @@ void SizeAndTimeBasedRollingFileAppender::clean(helpers::Time time)
 	helpers::LogLog & loglog = helpers::getLogLog();
 	for (long i = 0; i < periods; i++)
 	{
-		long periodToRemove = (-maxHistory - 1) - i;
+		long periodToRemove = (-maxHistory) - i;
 		Time timeToRemove = time + periodToRemove * period;
-		size_t npos = filenamePattern.find_last_of('/\\');
-		tstring dirNamePattern = filenamePattern.substr(0, npos);
+ #if defined (_WIN32)
+		size_t npos = filenamePattern.find_last_of('\\');
+#else 
+        size_t npos = filenamePattern.find_last_of('/');
+#endif
+        tstring dirNamePattern = filenamePattern.substr(0, npos);
 		tstring dirNameToRemove = helpers::getFormattedTime(dirNamePattern, timeToRemove, false);
 		loglog.debug(LOG4CPLUS_TEXT("Removing dir file ") + dirNameToRemove);
-		//file_remove(filenameToRemove);
+        //file_remove(filenameToRemove);
 		remove_dir(dirNameToRemove);
 	}
 	lastHeartBeat = time;
