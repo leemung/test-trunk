@@ -1648,7 +1648,6 @@ SizeAndTimeBasedRollingFileAppender::SizeAndTimeBasedRollingFileAppender(
 	filenamePattern = preprocessFilenamePattern(filenamePattern, schedule);
 
 	init(tmpMaxFileSize, tmpMaxBackupIndex);
-	//init();
 }
 
 SizeAndTimeBasedRollingFileAppender::~SizeAndTimeBasedRollingFileAppender()
@@ -1696,9 +1695,62 @@ LOG4CPLUS_PRIVATE void SizeAndTimeBasedRollingFileAppender::init(long maxFileSiz
 	maxBackupIndex = (std::max)(maxBackupIndex_, 1);
 }
 
+tstring
+SizeAndTimeBasedRollingFileAppender::getFilename(const Time& t) const
+{
+	tchar const * pattern = nullptr;
+	if (filenamePattern.empty())
+	{
+		switch (schedule)
+		{
+		case MONTHLY:
+			pattern = LOG4CPLUS_TEXT("%Y-%m");
+			break;
+
+		case WEEKLY:
+			pattern = LOG4CPLUS_TEXT("%Y-%W");
+			break;
+
+		default:
+			helpers::getLogLog().error(
+				LOG4CPLUS_TEXT("DailyRollingFileAppender::getFilename()-")
+				LOG4CPLUS_TEXT(" invalid schedule value"));
+			// Fall through.
+
+		case DAILY:
+			pattern = LOG4CPLUS_TEXT("%Y-%m-%d");
+			break;
+
+		case TWICE_DAILY:
+			pattern = LOG4CPLUS_TEXT("%Y-%m-%d-%p");
+			break;
+
+		case HOURLY:
+			pattern = LOG4CPLUS_TEXT("%Y-%m-%d-%H");
+			break;
+
+		case MINUTELY:
+			pattern = LOG4CPLUS_TEXT("%Y-%m-%d-%H-%M");
+			break;
+		};
+	}
+	else
+		pattern = filenamePattern.c_str();
+
+	tstring result(filename);
+	result += helpers::getFormattedTime(pattern, t, false);
+	return result;
+}
+
 void SizeAndTimeBasedRollingFileAppender::append(const spi::InternalLoggingEvent & event)
 {
-	if (event.getTimestamp() >= nextRolloverTime) {
+	Time now = helpers::now();
+	if (now >= nextRolloverTime) {
+		tstring tmpFile = getFilename(now);
+		tostringstream filePathOs;
+		filePathOs.str(internal::empty_str);
+		filePathOs << tmpFile.substr(0, tmpFile.size() - 4) << LOG4CPLUS_TEXT(".0.log");
+		scheduledFilename = filePathOs.str();
 		rolloverbytime(true);
 	}
 

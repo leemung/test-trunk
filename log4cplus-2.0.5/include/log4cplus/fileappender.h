@@ -457,6 +457,7 @@ namespace log4cplus
 		void clean(helpers::Time time);
 		helpers::Time::duration getRolloverPeriodDuration() const;
 		helpers::Time calculateNextRolloverTime(const helpers::Time& t) const;
+		log4cplus::tstring getFilename(const log4cplus::helpers::Time& t) const;
 
 		// Data
 		tstring filenamePattern;

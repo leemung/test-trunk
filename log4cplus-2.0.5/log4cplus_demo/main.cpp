@@ -8,7 +8,7 @@
 int main()
 {
 	
-	HYLog.Init("E:/git-trunk/test-trunk/log4cplus-2.0.5/msvc14/Win32/bin.Debug/log.config");
+	HYLog.Init("D:/workspace/test-trunk/log4cplus-2.0.5/log4cplus_demo/log.config");
 	for (size_t i = 0; i < 1000000000; i++)
 	{
 		LOG_INFO("开始打印日志信息开始打印日志信息开始打印日志信息开始打印日志信息开始打印日志信息开始打印日志信息。。。Info。");
